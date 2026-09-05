@@ -1,34 +1,84 @@
-import { useState, useEffect, useCallback } from 'react';
-import { getScaleNotes } from '../utils/pitchDetection';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { getScaleNotes, frequencyToNote } from '../utils/pitchDetection';
 import { PitchDisplay } from './PitchDisplay';
+import { SONGS, getSongById, playNote, getNoteFreq } from '../utils/songLibrary';
 
-const EXERCISES = [
-  { id: 'major', name: 'Major Scale', scale: 'major', root: 'C3', bpm: 80 },
-  { id: 'minor', name: 'Natural Minor', scale: 'minor', root: 'A3', bpm: 80 },
-  { id: 'pentatonic', name: 'Major Pentatonic', scale: 'pentatonic', root: 'G3', bpm: 80 },
-  { id: 'blues', name: 'Blues Scale', scale: 'blues', root: 'E3', bpm: 70 },
-];
+const DEFAULT_SONG = {
+  id: 'twinkle-twinkle',
+  name: 'Twinkle Twinkle Little Star',
+  key: 'C4',
+  notes: [
+    { note: 'C4', duration: 1 },
+    { note: 'C4', duration: 1 },
+    { note: 'G4', duration: 1 },
+    { note: 'G4', duration: 1 },
+    { note: 'A4', duration: 1 },
+    { note: 'A4', duration: 1 },
+    { note: 'G4', duration: 2 },
+    { note: 'F4', duration: 1 },
+    { note: 'F4', duration: 1 },
+    { note: 'E4', duration: 1 },
+    { note: 'E4', duration: 1 },
+    { note: 'D4', duration: 1 },
+    { note: 'D4', duration: 1 },
+    { note: 'C4', duration: 2 },
+  ],
+};
 
 export function ExerciseMode({ pitch, isListening }) {
-  const [selectedExercise, setSelectedExercise] = useState(EXERCISES[0]);
+  const [song, setSong] = useState(() => getSongById(DEFAULT_SONG.id) || DEFAULT_SONG);
   const [currentNoteIndex, setCurrentNoteIndex] = useState(0);
   const [direction, setDirection] = useState(1);
   const [score, setScore] = useState({ correct: 0, total: 0 });
   const [isActive, setIsActive] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const [isPlayingNote, setIsPlayingNote] = useState(false);
+  const [currentTargetNote, setCurrentTargetNote] = useState(song.notes[0]?.note || 'C4');
 
-  const scaleNotes = getScaleNotes(selectedExercise.root, selectedExercise.scale);
-  const targetNote = scaleNotes[currentNoteIndex];
-  const noteDuration = (60 / selectedExercise.bpm) * 1000 * 2;
+  const scaleNotes = getScaleNotes(song.key, 'major');
+  const targetNoteInfo = scaleNotes.find(n => n.note === currentTargetNote) || { note: currentTargetNote, octave: 4, displayName: currentTargetName };
+
+  const audioContextRef = useRef(null);
+  const oscillatorRef = useRef(null);
+
+  const playCurrentTarget = useCallback(() => {
+    const note = currentTargetNote;
+    setIsPlayingNote(true);
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+    }
+    audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    oscillatorRef.current = audioContextRef.current.createOscillator();
+    const gainNode = audioContextRef.current.createGain();
+    oscillatorRef.current.type = 'sine';
+    oscillatorRef.current.frequency.value = getNoteFreq(note) || 440;
+    oscillatorRef.current.connect(gainNode);
+    gainNode.connect(audioContextRef.current.destination);
+    gainNode.gain.value = 0.3;
+    oscillatorRef.current.start();
+    oscillatorRef.current.stop(audioContextRef.current.currentTime + (song.duration || 1));
+  }, [currentTargetNote, song.duration]);
+
+  useEffect(() => {
+    const note = song.notes[currentNoteIndex];
+    if (note && note.note !== currentTargetNote) {
+      setCurrentTargetNote(note.note);
+      playCurrentTarget();
+    }
+  }, [currentNoteIndex, song]);
 
   const checkPitch = useCallback(() => {
-    if (!pitch || !targetNote) return;
-    const isMatch = pitch.midi === targetNote.midi;
+    if (!pitch || !currentTargetNote) return;
+    const isMatch = pitch.midi === null ? false : {
+      // Compare note name, not exact midi since pitch detection is approximate
+      noteNameMatch: pitch.note === currentTargetNote,
+      centsWithinTune: Math.abs(pitch.cents) < 25,
+    };
     setScore(prev => ({
-      correct: prev.correct + (isMatch ? 1 : 0),
+      correct: prev.correct + (isMatch.noteNameMatch && isMatch.centsWithinTune ? 1 : 0),
       total: prev.total + 1,
     }));
-  }, [pitch, targetNote]);
+  }, [pitch, currentTargetNote]);
 
   useEffect(() => {
     if (!isActive || !isListening) return;
@@ -36,9 +86,9 @@ export function ExerciseMode({ pitch, isListening }) {
       checkPitch();
       setCurrentNoteIndex(prev => {
         const next = prev + direction;
-        if (next >= scaleNotes.length - 1) {
+        if (next >= song.notes.length - 1) {
           setDirection(-1);
-          return scaleNotes.length - 2;
+          return song.notes.length - 2;
         }
         if (next <= 0) {
           setDirection(1);
@@ -46,9 +96,9 @@ export function ExerciseMode({ pitch, isListening }) {
         }
         return next;
       });
-    }, noteDuration);
+    }, 500);
     return () => clearInterval(interval);
-  }, [isActive, isListening, direction, scaleNotes.length, noteDuration, checkPitch]);
+  }, [isActive, isListening, direction, song.notes.length, checkPitch]);
 
   const startExercise = () => {
     setCurrentNoteIndex(0);
@@ -56,30 +106,40 @@ export function ExerciseMode({ pitch, isListening }) {
     setScore({ correct: 0, total: 0 });
     setIsActive(true);
     setShowResults(false);
+    setCurrentTargetNote(song.notes[0]?.note || 'C4');
   };
 
   const stopExercise = () => {
     setIsActive(false);
     setShowResults(true);
+    if (oscillatorRef.current) {
+      oscillatorRef.current.stop();
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+    }
   };
 
-  const progress = scaleNotes.length > 1 ? (currentNoteIndex / (scaleNotes.length - 1)) * 100 : 0;
+  const progress = song.notes.length > 0 ? (currentNoteIndex / song.notes.length) * 100 : 0;
 
   return (
     <div className="exercise-mode" style={styles.container}>
       <div style={styles.header}>
-        <h2 style={styles.title}>{selectedExercise.name}</h2>
+        <h2 style={styles.title}>{song.name}</h2>
         <select
-          value={selectedExercise.id}
+          value={song.id}
           onChange={(e) => {
-            const ex = EXERCISES.find(x => x.id === e.target.value);
-            setSelectedExercise(ex);
+            setSong(getSongById(e.target.value) || DEFAULT_SONG);
             setIsActive(false);
+            setCurrentNoteIndex(0);
+            setDirection(1);
+            setScore({ correct: 0, total: 0 });
+            setCurrentTargetNote(song.notes[0]?.note || 'C4');
           }}
           style={styles.select}
         >
-          {EXERCISES.map(ex => (
-            <option key={ex.id} value={ex.id}>{ex.name}</option>
+          {SONGS.map(s => (
+            <option key={s.id} value={s.id}>{s.name}</option>
           ))}
         </select>
       </div>
@@ -90,8 +150,8 @@ export function ExerciseMode({ pitch, isListening }) {
             key={note.midi}
             style={{
               ...styles.scaleNote,
-              ...(i === currentNoteIndex && styles.scaleNoteActive),
-              ...(isActive && pitch && pitch.midi === note.midi && styles.scaleNoteHit),
+              ...(i === scaleNotes.findIndex(n => n.note === currentTargetNote) && styles.scaleNoteActive),
+              ...(isActive && pitch && pitch.note === note.note && styles.scaleNoteHit),
             }}
           >
             {note.displayName}
@@ -99,34 +159,38 @@ export function ExerciseMode({ pitch, isListening }) {
         ))}
       </div>
 
-      <PitchDisplay pitch={pitch} targetNote={targetNote} />
+      <PitchDisplay pitch={pitch} targetNote={{ note: currentTargetNote, ...targetNoteInfo }} />
 
       <div style={styles.progressContainer}>
         <div style={{ ...styles.progressBar, width: `${progress}%` }} />
+        <div style={styles.progressText}>{Math.round(progress)}%</div>
       </div>
 
       <div style={styles.controls}>
-        {isActive ? (
-          <button onClick={stopExercise} style={{ ...styles.button, ...styles.buttonStop }}>
-            Stop Exercise
-          </button>
-        ) : (
-          <button onClick={startExercise} style={styles.button} disabled={!isListening}>
-            {isListening ? 'Start Exercise' : 'Enable Microphone First'}
-          </button>
-        )}
-        {(!isActive && !isListening) && (
-          <span style={{ ...styles.button, background: 'rgba(255,255,255,0.1)', color: '#9ca3af', marginLeft: '12px' }}>
-            🎤 Enable mic first
-          </span>
-        )}
+        <div style={styles.controlButtons}>
+          {isActive ? (
+            <>
+              <button onClick={stopExercise} style={{ ...styles.button, ...styles.buttonStop }}>
+                ⏹ Stop
+              </button>
+              <button onClick={playCurrentTarget} style={{ ...styles.button, background: 'linear-gradient(135deg, #f6ad56, #ff7849)', marginLeft: '8px' }}>
+                🔊
+              </button>
+            </>
+          ) : (
+            <button onClick={startExercise} style={styles.button} disabled={!isListening}>
+              {isListening ? 'Start Song' : 'Enable Microphone First'}
+            </button>
+          )}
+        </div>
       </div>
 
       {showResults && (
         <div style={styles.results}>
-          <h3>Exercise Complete</h3>
+          <h3>Song Complete</h3>
           <p>Accuracy: {score.total > 0 ? Math.round((score.correct / score.total) * 100) : 0}%</p>
           <p>Correct notes: {score.correct} / {score.total}</p>
+          <p>Notes sung: {song.notes.length}</p>
         </div>
       )}
     </div>
@@ -166,15 +230,15 @@ const styles = {
     flexWrap: 'wrap',
   },
   scaleNote: {
-    width: '48px',
-    height: '48px',
-    borderRadius: '12px',
+    width: '44px',
+    height: '44px',
+    borderRadius: '10px',
     background: 'rgba(255,255,255,0.05)',
     border: '1px solid rgba(255,255,255,0.1)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '12px',
+    fontSize: '11px',
     fontWeight: 600,
     color: '#9ca3af',
     transition: 'all 0.2s',
@@ -191,27 +255,41 @@ const styles = {
     color: 'white',
   },
   progressContainer: {
-    height: '6px',
+    height: '8px',
     background: 'rgba(255,255,255,0.1)',
-    borderRadius: '3px',
+    borderRadius: '4px',
     marginBottom: '20px',
     overflow: 'hidden',
+    marginTop: '8px',
   },
   progressBar: {
     height: '100%',
     background: 'linear-gradient(90deg, #60a5fa, #a78bfa)',
-    borderRadius: '3px',
+    borderRadius: '4px',
     transition: 'width 0.3s ease',
+  },
+  progressText: {
+    marginLeft: '8px',
+    fontSize: '12px',
+    fontWeight: 600,
+    color: '#60a5fa',
   },
   controls: {
     display: 'flex',
     justifyContent: 'center',
+    gap: '12px',
+    marginTop: '16px',
+  },
+  controlButtons: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
   },
   button: {
-    padding: '12px 32px',
+    padding: '10px 24px',
     borderRadius: '8px',
     border: 'none',
-    fontSize: '16px',
+    fontSize: '14px',
     fontWeight: 600,
     cursor: 'pointer',
     background: 'linear-gradient(135deg, #60a5fa, #a78bfa)',
