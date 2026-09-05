@@ -23,20 +23,6 @@ export const SONGS = [
     ],
   },
   {
-    id: 'falling-into-history',
-    name: 'Avril Lavigne - Falling Into History',
-    key: 'C4',
-    notes: [
-      { note: 'A3', duration: 1 },
-      { note: 'C4', duration: 1 },
-      { note: 'E4', duration: 1 },
-      { note: 'G4', duration: 1 },
-      { note: 'F4', duration: 1 },
-      { note: 'E4', duration: 1 },
-      { note: 'D4', duration: 2 },
-    ],
-  },
-  {
     id: 'slipped-away',
     name: 'Avril Lavigne - Slipped Away',
     key: 'A3',
@@ -61,20 +47,6 @@ export const SONGS = [
       { note: 'G4', duration: 1 },
       { note: 'F4', duration: 1 },
       { note: 'E4', duration: 2 },
-    ],
-  },
-  {
-    id: 'dont-tell-me',
-    name: 'Avril Lavigne - Dont Tell Me',
-    key: 'C4',
-    notes: [
-      { note: 'C4', duration: 1 },
-      { note: 'G4', duration: 1 },
-      { note: 'A4', duration: 1 },
-      { note: 'G4', duration: 1 },
-      { note: 'F4', duration: 1 },
-      { note: 'E4', duration: 1 },
-      { note: 'D4', duration: 2 },
     ],
   },
   {

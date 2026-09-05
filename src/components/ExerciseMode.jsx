@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { getScaleNotes, frequencyToNote } from '../utils/pitchDetection';
 import { PitchDisplay } from './PitchDisplay';
 import { SONGS, getSongById, playNote, getNoteFreq } from '../utils/songLibrary';
 
@@ -19,7 +18,6 @@ export function ExerciseMode({ pitch, isListening }) {
   const oscillatorRef = useRef(null);
 
   const playCurrentTarget = useCallback(() => {
-    setCurrentTargetNote(currentTargetNote);
     const note = currentTargetNote;
     if (audioContextRef.current) {
       audioContextRef.current.close();
@@ -33,14 +31,15 @@ export function ExerciseMode({ pitch, isListening }) {
     gainNode.connect(audioContextRef.current.destination);
     gainNode.gain.value = 0.3;
     oscillatorRef.current.start(ctx => { oscillatorRef.current.stop(ctx.currentTime + 1); });
-  }, []);
+  }, [currentTargetNote]);
 
   useEffect(() => {
     const note = song.notes[currentNoteIndex];
     if (note) {
       setCurrentTargetNote(note.note);
+      playCurrentTarget();
     }
-  }, [currentNoteIndex, song]);
+  }, [currentNoteIndex]);
 
   const checkPitch = useCallback(() => {
     if (!pitch || !currentTargetNote) return;
@@ -107,9 +106,7 @@ export function ExerciseMode({ pitch, isListening }) {
             setCurrentNoteIndex(0);
             setDirection(1);
             setScore({ correct: 0, total: 0 });
-            if (song.notes.length > 0) {
-              setCurrentTargetNote(song.notes[0].note);
-            }
+            setCurrentTargetNote(song.notes[0]?.note || 'C4');
           }}
           style={styles.select}
         >
