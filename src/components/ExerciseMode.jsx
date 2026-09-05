@@ -115,6 +115,11 @@ export function ExerciseMode({ pitch, isListening }) {
             {isListening ? 'Start Exercise' : 'Enable Microphone First'}
           </button>
         )}
+        {(!isActive && !isListening) && (
+          <span style={{ ...styles.button, background: 'rgba(255,255,255,0.1)', color: '#9ca3af', marginLeft: '12px' }}>
+            🎤 Enable mic first
+          </span>
+        )}
       </div>
 
       {showResults && (

@@ -63,9 +63,12 @@ function App() {
               {isListening ? (
                 <span style={styles.listening}>● Listening</span>
               ) : (
-                <button onClick={handleStart} style={styles.startButton}>
-                  Start Listening
-                </button>
+                <div style={styles.startInstr}>
+                  <p style={styles.startText}>Click "Start Listening" to detect notes</p>
+                  <button onClick={handleStart} style={styles.startButton}>
+                    Start
+                  </button>
+                </div>
               )}
             </div>
           </div>
