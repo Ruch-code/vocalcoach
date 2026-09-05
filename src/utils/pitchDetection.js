@@ -62,7 +62,7 @@ export class PitchDetector {
     this.onError = options.onError || (() => {});
     this.bufferSize = options.bufferSize || 2048;
     this.sampleRate = options.sampleRate || 44100;
-    this.minConfidence = options.minConfidence || 0.3;
+    this.minConfidence = options.minConfidence || 0.1;
     this.smoothing = options.smoothing || 0.8;
     this.lastFreq = 0;
   }
@@ -71,9 +71,9 @@ export class PitchDetector {
     try {
       this.mediaStream = await navigator.mediaDevices.getUserMedia({ 
         audio: { 
-          echoCancellation: false, 
-          noiseSuppression: false, 
-          autoGainControl: false 
+          echoCancellation: true, 
+          noiseSuppression: true, 
+          autoGainControl: true 
         } 
       });
 
