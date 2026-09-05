@@ -87,6 +87,48 @@ export const SONGS = [
       { note: 'G4', duration: 2 },
     ],
   },
+  {
+    id: 'complicated',
+    name: 'Avril Lavigne - Complicated',
+    key: 'C4',
+    notes: [
+      { note: 'C4', duration: 1 },
+      { note: 'G4', duration: 1 },
+      { note: 'A4', duration: 1 },
+      { note: 'G4', duration: 1 },
+      { note: 'F4', duration: 1 },
+      { note: 'E4', duration: 1 },
+      { note: 'D4', duration: 2 },
+    ],
+  },
+  {
+    id: 'someone-like-you',
+    name: 'Adele - Someone Like You',
+    key: 'A3',
+    notes: [
+      { note: 'A3', duration: 2 },
+      { note: 'G3', duration: 2 },
+      { note: 'F#3', duration: 2 },
+      { note: 'E3', duration: 2 },
+      { note: 'D3', duration: 2 },
+      { note: 'C3', duration: 2 },
+      { note: 'B2', duration: 4 },
+    ],
+  },
+  {
+    id: 'rolling-in-the-deep',
+    name: 'Adele - Rolling in the Deep',
+    key: 'A3',
+    notes: [
+      { note: 'A3', duration: 1 },
+      { note: 'C4', duration: 1 },
+      { note: 'D4', duration: 1 },
+      { note: 'C4', duration: 1 },
+      { note: 'A3', duration: 1 },
+      { note: 'F#3', duration: 1 },
+      { note: 'E3', duration: 2 },
+    ],
+  },
 ];
 
 export function getSongById(id) {
