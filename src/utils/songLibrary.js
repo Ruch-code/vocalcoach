@@ -12,6 +12,12 @@ export const SONGS = [
     id: 'why',
     name: 'Avril Lavigne - Why',
     key: 'C4',
+    lyrics: [
+      ['Why', 0.0],
+      ['Looking at me', 1.5],
+      ['You do re doing to me', 4.5],
+      ['Is it the things that I say', 6.0],
+    ],
     notes: [
       { note: 'C4', duration: 1 },
       { note: 'G4', duration: 1 },
@@ -26,6 +32,12 @@ export const SONGS = [
     id: 'slipped-away',
     name: 'Avril Lavigne - Slipped Away',
     key: 'A3',
+    lyrics: [
+      ['Slipped away', 0.0],
+      ['Had you forever', 1.0],
+      ['Everything that I had told myself I', 5.0],
+      ['I I I I', 7.0],
+    ],
     notes: [
       { note: 'A3', duration: 2 },
       { note: 'G3', duration: 2 },
@@ -40,6 +52,12 @@ export const SONGS = [
     id: 'fall-to-pieces',
     name: 'Avril Lavigne - Fall to Pieces',
     key: 'C4',
+    lyrics: [
+      ['Fall to pieces', 0.0],
+      ['Every day I am a sinner', 1.5],
+      ['And I', 3.0],
+      ['And I', 4.0],
+    ],
     notes: [
       { note: 'C4', duration: 1 },
       { note: 'G4', duration: 1 },
@@ -53,6 +71,14 @@ export const SONGS = [
     id: 'titanium',
     name: 'Sia - Titanium',
     key: 'C4',
+    lyrics: [
+      ['You shoot me down', 0.0],
+      ['but I wont fall', 1.5],
+      ['I am titanium', 3.0],
+      ['You shoot me down', 4.5],
+      ['but I wont fall', 6.0],
+      ['I am titanium', 7.5],
+    ],
     notes: [
       { note: 'C4', duration: 1 },
       { note: 'E4', duration: 1 },
@@ -90,4 +116,32 @@ export function playNote(noteName, duration = 1) {
 
   oscillator.start(ctx.currentTime);
   oscillator.stop(ctx.currentTime + duration);
+}
+
+export function playSongInstrumental(songId, startTime = 0) {
+  const song = getSongById(songId);
+  if (!song) return;
+
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const gainNode = ctx.createGain();
+  gainNode.gain.value = 0.1;
+  gainNode.connect(ctx.destination);
+
+  const oscillator = ctx.createOscillator();
+  oscillator.type = 'sine';
+  oscillator.connect(gainNode);
+
+  song.notes.forEach((noteObj, idx) => {
+    setTimeout(() => {
+      const noteFreq = getNoteFreq(noteObj.note);
+      if (noteFreq && ctx.state === 'running') {
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.value = noteFreq;
+        osc.connect(gainNode);
+        osc.start(ctx.currentTime + startTime + idx * 0.5);
+        osc.stop(ctx.currentTime + startTime + (idx + 1) * 0.5);
+      }
+    }, idx * 100);
+  });
 }

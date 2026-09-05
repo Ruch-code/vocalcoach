@@ -1,21 +1,27 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { PitchDisplay } from './PitchDisplay';
-import { SONGS, getSongById, playNote, getNoteFreq } from '../utils/songLibrary';
+import { SONGS, getSongById, playNote, getNoteFreq, playSongInstrumental } from '../utils/songLibrary';
 
 export function ExerciseMode({ pitch, isListening }) {
-  const [song, setSong] = useState(() => getSongById('why') || { id: 'why', name: 'Avril Lavigne - Why', key: 'C4', notes: [] });
+  const [song, setSong] = useState(() => getSongById('why') || { id: 'why', name: 'Avril Lavigne - Why', key: 'C4', notes: [], lyrics: [] });
   const [currentNoteIndex, setCurrentNoteIndex] = useState(0);
   const [direction, setDirection] = useState(1);
   const [score, setScore] = useState({ correct: 0, total: 0 });
   const [isActive, setIsActive] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [currentTargetNote, setCurrentTargetNote] = useState('C4');
+  const [lyricIndex, setLyricIndex] = useState(0);
+  const [isPlayingInstrumental, setIsPlayingInstrumental] = useState(false);
+  const audioContextRef = useRef(null);
+  const oscillatorRef = useRef(null);
 
   const scaleNotes = getScaleNotes(song.key, 'major');
   const targetNoteInfo = scaleNotes.find(n => n.note === currentTargetNote) || { note: currentTargetNote, octave: 4, displayName: currentTargetNote };
 
-  const audioContextRef = useRef(null);
-  const oscillatorRef = useRef(null);
+  // Start audio context when component mounts
+  useEffect(() => {
+    audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+  }, []);
 
   const playCurrentTarget = useCallback(() => {
     const note = currentTargetNote;
@@ -33,10 +39,19 @@ export function ExerciseMode({ pitch, isListening }) {
     oscillatorRef.current.start(ctx => { oscillatorRef.current.stop(ctx.currentTime + 1); });
   }, [currentTargetNote]);
 
+  // Play instrumental when song starts
+  useEffect(() => {
+    if (isActive && song.notes.length > 0 && !isPlayingInstrumental) {
+      setIsPlayingInstrumental(true);
+      playSongInstrumental(song.id, 0.5);
+    }
+  }, [isActive, song.id, isPlayingInstrumental]);
+
   useEffect(() => {
     const note = song.notes[currentNoteIndex];
     if (note) {
       setCurrentTargetNote(note.note);
+      setLyricIndex(0);
       playCurrentTarget();
     }
   }, [currentNoteIndex]);
@@ -76,6 +91,8 @@ export function ExerciseMode({ pitch, isListening }) {
     setScore({ correct: 0, total: 0 });
     setIsActive(true);
     setShowResults(false);
+    setLyricIndex(0);
+    setIsPlayingInstrumental(false);
     if (song.notes.length > 0) {
       setCurrentTargetNote(song.notes[0].note);
     }
@@ -84,6 +101,7 @@ export function ExerciseMode({ pitch, isListening }) {
   const stopExercise = () => {
     setIsActive(false);
     setShowResults(true);
+    setIsPlayingInstrumental(false);
     if (oscillatorRef.current) {
       oscillatorRef.current.stop();
     }
@@ -94,6 +112,10 @@ export function ExerciseMode({ pitch, isListening }) {
 
   const progress = song.notes.length > 0 ? (currentNoteIndex / song.notes.length) * 100 : 0;
 
+  // Get current lyric line based on progress
+  const currentLyricLine = song.lyrics?.[lyricIndex];
+  const isLastNote = currentNoteIndex >= song.notes.length - 1;
+
   return (
     <div className="exercise-mode" style={styles.container}>
       <div style={styles.header}>
@@ -101,12 +123,14 @@ export function ExerciseMode({ pitch, isListening }) {
         <select
           value={song.id}
           onChange={(e) => {
-            setSong(getSongById(e.target.value) || { id: 'why', name: 'Avril Lavigne - Why', key: 'C4', notes: [] });
+            setSong(getSongById(e.target.value) || { id: 'why', name: 'Avril Lavigne - Why', key: 'C4', notes: [], lyrics: [] });
             setIsActive(false);
             setCurrentNoteIndex(0);
             setDirection(1);
             setScore({ correct: 0, total: 0 });
+            setLyricIndex(0);
             setCurrentTargetNote(song.notes[0]?.note || 'C4');
+            setIsPlayingInstrumental(false);
           }}
           style={styles.select}
         >
@@ -114,6 +138,36 @@ export function ExerciseMode({ pitch, isListening }) {
             <option key={s.id} value={s.id}>{s.name}</option>
           ))}
         </select>
+      </div>
+
+      {/* Karaoke Lyrics Section */}
+      <div style={styles.lyricsContainer}>
+        {song.lyrics?.map((line, lineIndex) => {
+          // Determine if this line should be highlighted based on progress
+          const isActiveLine = lineIndex === lyricIndex || (isLastNote && lineIndex <= lyricIndex);
+          const highlightClass = isActiveLine ? ' lyric-active' : '';
+          
+          return (
+            <div key={lineIndex} style={[
+              styles.lyricLine,
+              highlightClass && styles.lyricHighlight
+            ]}>
+              {typeof line === 'string' ? (
+                <span>{line}</span>
+              ) : (
+                <span>
+                  {line[0].split('').map((char, charIndex) => (
+                    <span key={charIndex} style={[
+                      styles.lyricChar,
+                      charIndex === 0 && styles.lyricFirstChar,
+                      isActiveLine && styles.lyricCharActive
+                    ]}>{char}</span>
+                  ))}
+                </span>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       <div style={styles.scaleVisual}>
@@ -147,6 +201,9 @@ export function ExerciseMode({ pitch, isListening }) {
               </button>
               <button onClick={playCurrentTarget} style={{ ...styles.button, background: 'linear-gradient(135deg, #f6ad56, #ff7849)', marginLeft: '8px' }}>
                 🔊
+              </button>
+              <button onClick={() => setIsPlayingInstrumental(!isPlayingInstrumental)} style={{ ...styles.button, background: isPlayingInstrumental ? 'linear-gradient(135deg, #6b7280, #4b5563)' : 'linear-gradient(135deg, #10b981, #34d399)', marginLeft: '8px' }}>
+                {isPlayingInstrumental ? '🛑 Inst' : '🎵 Inst'}
               </button>
             </>
           ) : (
@@ -225,6 +282,34 @@ const styles = {
     background: '#10b981',
     borderColor: '#10b981',
     color: 'white',
+  },
+  lyricsContainer: {
+    margin: '20px 0',
+    textAlign: 'center',
+  },
+  lyricLine: {
+    margin: '8px 0',
+    fontSize: '20px',
+    fontWeight: 500,
+    color: 'white',
+    minHeight: '25px',
+    display: 'inline-flex',
+    alignItems: 'center',
+  },
+  lyricHighlight: {
+    textShadow: '0 0 20px #60a5fa, 0 0 30px #a78bfa',
+  },
+  lyricChar: {
+    display: 'inline-block',
+    margin: '0 2px',
+    transition: 'color 0.1s',
+  },
+  lyricFirstChar: {
+    color: '#60a5fa',
+  },
+  lyricCharActive: {
+    color: '#ffd700',
+    textShadow: '0 0 10px #ffd700',
   },
   progressContainer: {
     height: '8px',
