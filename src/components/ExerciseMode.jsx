@@ -3,47 +3,24 @@ import { getScaleNotes, frequencyToNote } from '../utils/pitchDetection';
 import { PitchDisplay } from './PitchDisplay';
 import { SONGS, getSongById, playNote, getNoteFreq } from '../utils/songLibrary';
 
-const DEFAULT_SONG = {
-  id: 'twinkle-twinkle',
-  name: 'Twinkle Twinkle Little Star',
-  key: 'C4',
-  notes: [
-    { note: 'C4', duration: 1 },
-    { note: 'C4', duration: 1 },
-    { note: 'G4', duration: 1 },
-    { note: 'G4', duration: 1 },
-    { note: 'A4', duration: 1 },
-    { note: 'A4', duration: 1 },
-    { note: 'G4', duration: 2 },
-    { note: 'F4', duration: 1 },
-    { note: 'F4', duration: 1 },
-    { note: 'E4', duration: 1 },
-    { note: 'E4', duration: 1 },
-    { note: 'D4', duration: 1 },
-    { note: 'D4', duration: 1 },
-    { note: 'C4', duration: 2 },
-  ],
-};
-
 export function ExerciseMode({ pitch, isListening }) {
-  const [song, setSong] = useState(() => getSongById(DEFAULT_SONG.id) || DEFAULT_SONG);
+  const [song, setSong] = useState(() => getSongById('why') || { id: 'why', name: 'Avril Lavigne - Why', key: 'C4', notes: [] });
   const [currentNoteIndex, setCurrentNoteIndex] = useState(0);
   const [direction, setDirection] = useState(1);
   const [score, setScore] = useState({ correct: 0, total: 0 });
   const [isActive, setIsActive] = useState(false);
   const [showResults, setShowResults] = useState(false);
-  const [isPlayingNote, setIsPlayingNote] = useState(false);
-  const [currentTargetNote, setCurrentTargetNote] = useState(song.notes[0]?.note || 'C4');
+  const [currentTargetNote, setCurrentTargetNote] = useState('C4');
 
   const scaleNotes = getScaleNotes(song.key, 'major');
-  const targetNoteInfo = scaleNotes.find(n => n.note === currentTargetNote) || { note: currentTargetNote, octave: 4, displayName: currentTargetName };
+  const targetNoteInfo = scaleNotes.find(n => n.note === currentTargetNote) || { note: currentTargetNote, octave: 4, displayName: currentTargetNote };
 
   const audioContextRef = useRef(null);
   const oscillatorRef = useRef(null);
 
   const playCurrentTarget = useCallback(() => {
+    setCurrentTargetNote(currentTargetNote);
     const note = currentTargetNote;
-    setIsPlayingNote(true);
     if (audioContextRef.current) {
       audioContextRef.current.close();
     }
@@ -55,27 +32,21 @@ export function ExerciseMode({ pitch, isListening }) {
     oscillatorRef.current.connect(gainNode);
     gainNode.connect(audioContextRef.current.destination);
     gainNode.gain.value = 0.3;
-    oscillatorRef.current.start();
-    oscillatorRef.current.stop(audioContextRef.current.currentTime + (song.duration || 1));
-  }, [currentTargetNote, song.duration]);
+    oscillatorRef.current.start(ctx => { oscillatorRef.current.stop(ctx.currentTime + 1); });
+  }, []);
 
   useEffect(() => {
     const note = song.notes[currentNoteIndex];
-    if (note && note.note !== currentTargetNote) {
+    if (note) {
       setCurrentTargetNote(note.note);
-      playCurrentTarget();
     }
   }, [currentNoteIndex, song]);
 
   const checkPitch = useCallback(() => {
     if (!pitch || !currentTargetNote) return;
-    const isMatch = pitch.midi === null ? false : {
-      // Compare note name, not exact midi since pitch detection is approximate
-      noteNameMatch: pitch.note === currentTargetNote,
-      centsWithinTune: Math.abs(pitch.cents) < 25,
-    };
+    const isMatch = pitch.note === currentTargetNote && Math.abs(pitch.cents) < 25;
     setScore(prev => ({
-      correct: prev.correct + (isMatch.noteNameMatch && isMatch.centsWithinTune ? 1 : 0),
+      correct: prev.correct + (isMatch ? 1 : 0),
       total: prev.total + 1,
     }));
   }, [pitch, currentTargetNote]);
@@ -106,7 +77,9 @@ export function ExerciseMode({ pitch, isListening }) {
     setScore({ correct: 0, total: 0 });
     setIsActive(true);
     setShowResults(false);
-    setCurrentTargetNote(song.notes[0]?.note || 'C4');
+    if (song.notes.length > 0) {
+      setCurrentTargetNote(song.notes[0].note);
+    }
   };
 
   const stopExercise = () => {
@@ -129,12 +102,14 @@ export function ExerciseMode({ pitch, isListening }) {
         <select
           value={song.id}
           onChange={(e) => {
-            setSong(getSongById(e.target.value) || DEFAULT_SONG);
+            setSong(getSongById(e.target.value) || { id: 'why', name: 'Avril Lavigne - Why', key: 'C4', notes: [] });
             setIsActive(false);
             setCurrentNoteIndex(0);
             setDirection(1);
             setScore({ correct: 0, total: 0 });
-            setCurrentTargetNote(song.notes[0]?.note || 'C4');
+            if (song.notes.length > 0) {
+              setCurrentTargetNote(song.notes[0].note);
+            }
           }}
           style={styles.select}
         >

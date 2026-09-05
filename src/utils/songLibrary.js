@@ -77,6 +77,20 @@ export const SONGS = [
       { note: 'D4', duration: 2 },
     ],
   },
+  {
+    id: 'titanium',
+    name: 'Sia - Titanium',
+    key: 'C4',
+    notes: [
+      { note: 'C4', duration: 1 },
+      { note: 'E4', duration: 1 },
+      { note: 'G4', duration: 1 },
+      { note: 'A4', duration: 1 },
+      { note: 'G4', duration: 1 },
+      { note: 'F4', duration: 1 },
+      { note: 'E4', duration: 2 },
+    ],
+  },
 ];
 
 export function getSongById(id) {
