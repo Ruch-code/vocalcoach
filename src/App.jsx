@@ -14,12 +14,59 @@ function App() {
 
   const tabs = [
     { id: 'tuner', label: '🎵 Tuner', icon: '🎵' },
-    { id: 'exercise', label: '📚 Exercises', icon: '📚' },
+    { id: 'exercise', label: '📚 Exercise', icon: '📚' },
     { id: 'recorder', label: '🎤 Record', icon: '🎤' },
   ];
 
+  // Check for reduced motion preference
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Theme system
+  const [theme, setTheme] = useState(() => 
+    window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    setTheme(mq.matches ? 'dark' : 'light');
+    const listener = () => setTheme(mq.matches ? 'dark' : 'light');
+    mq.addEventListener('change', listener);
+    return () => mq.removeEventListener('change', listener);
+  }, []);
+
+  // Simple mouse tracking for highlighting app area
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [isHoveringApp, setIsHoveringApp] = useState(false);
+
+  useEffect(() => {
+    if (reducedMotion) return;
+
+    const handleMouseMove = (e) => {
+      setMousePos({ x: e.clientX, y: e.clientY });
+      // Check if mouse is within app viewport
+      const rect = document.querySelector('.app')?.getBoundingClientRect();
+      if (rect && e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+        setIsHoveringApp(true);
+      } else {
+        setIsHoveringApp(false);
+      }
+    };
+
+    const handleMouseLeave = () => {
+      setIsHoveringApp(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseleave', handleMouseLeave);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseleave', handleMouseLeave);
+    };
+  }, [reducedMotion]);
+
   return (
-    <div className="app" style={styles.app}>
+    <div className="app" style={styles.app} className={theme === 'dark' ? 'dark' : 'light'}>
       <header style={styles.header}>
         <h1 style={styles.logo}>VocalCoach</h1>
         <p style={styles.tagline}>Improve your singing with real-time feedback</p>
@@ -31,7 +78,7 @@ function App() {
         </div>
       )}
 
-      <nav style={styles.tabs}>
+      <nav style={styles.nav}>
         {tabs.map(tab => (
           <button
             key={tab.id}
@@ -44,6 +91,14 @@ function App() {
             {tab.label}
           </button>
         ))}
+        {/* Theme toggle */}
+        <button
+          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          style={{ ...styles.tab, marginLeft: '16px', background: 'none', border: 'none' }}
+          title="Toggle dark/light mode"
+        >
+          {theme === 'dark' ? '☀️' : '🌙'}
+        </button>
       </nav>
 
       <main style={styles.main}>
@@ -63,12 +118,9 @@ function App() {
               {isListening ? (
                 <span style={styles.listening}>● Listening</span>
               ) : (
-                <div style={styles.startInstr}>
-                  <p style={styles.startText}>Click "Start Listening" to detect notes</p>
-                  <button onClick={handleStart} style={styles.startButton}>
-                    Start
-                  </button>
-                </div>
+                <button onClick={handleStart} style={styles.startButton}>
+                  Start Listening
+                </button>
               )}
             </div>
           </div>
@@ -98,6 +150,7 @@ const styles = {
     color: 'white',
     fontFamily: 'system-ui, -apple-system, sans-serif',
     padding: '20px',
+    transition: 'background-color 0.3s, color 0.3s',
   },
   header: {
     textAlign: 'center',
@@ -136,7 +189,7 @@ const styles = {
     cursor: 'pointer',
     marginLeft: '8px',
   },
-  tabs: {
+  nav: {
     display: 'flex',
     gap: '8px',
     justifyContent: 'center',
@@ -178,7 +231,6 @@ const styles = {
     background: 'linear-gradient(135deg, #60a5fa, #a78bfa)',
     color: 'white',
     fontWeight: 600,
-    cursor: 'pointer',
   },
   micText: {
     margin: '12px 0 0',
@@ -209,7 +261,6 @@ const styles = {
     color: 'white',
     fontSize: '16px',
     fontWeight: 600,
-    cursor: 'pointer',
   },
   footer: {
     textAlign: 'center',
@@ -221,7 +272,7 @@ const styles = {
   },
   credit: {
     marginTop: '8px',
-    color: '#9ca3af',
+    color: '#6b7280',
     fontSize: '13px',
     fontWeight: 500,
   },
