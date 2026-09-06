@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { frequencyToNote } from '../utils/pitchDetection';
 
-export function Recorder({ isListening }) {
+export function Recorder({ isListening, micGranted }) {
   const [isRecording, setIsRecording] = useState(false);
   const [recording, setRecording] = useState(null);
   const [analysis, setAnalysis] = useState(null);
@@ -16,6 +16,19 @@ export function Recorder({ isListening }) {
   const startRecording = useCallback(async () => {
     try {
       setError(null);
+      setIsRecording(true);
+      
+      // Ensure audio context exists
+      if (!audioContextRef.current) {
+        try {
+          audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+        } catch (e) {
+          setError('Could not create audio context');
+          setIsRecording(false);
+          return;
+        }
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: { 
           echoCancellation: false, 
@@ -24,7 +37,6 @@ export function Recorder({ isListening }) {
         } 
       });
 
-      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
       analyserRef.current = audioContextRef.current.createAnalyser();
       analyserRef.current.fftSize = 2048;
       analyserRef.current.smoothingTimeConstant = 0.8;
@@ -78,15 +90,19 @@ export function Recorder({ isListening }) {
       detectPitch();
     } catch (err) {
       setError(err.message);
+      setIsRecording(false);
     }
-  }, []);
+  }, [isListening]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
-      if (audioContextRef.current) audioContextRef.current.close();
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+        audioContextRef.current = null;
+      }
       mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop());
     }
   }, [isRecording]);
@@ -133,7 +149,10 @@ export function Recorder({ isListening }) {
   useEffect(() => {
     return () => {
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
-      if (audioContextRef.current) audioContextRef.current.close();
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+        audioContextRef.current = null;
+      }
     };
   }, []);
 
@@ -141,7 +160,7 @@ export function Recorder({ isListening }) {
     <div className="recorder" style={styles.container}>
       <div style={styles.header}>
         <h2 style={styles.title}>Recorder</h2>
-        {error && <div style={styles.error}>{error}</div>}
+        {error && <div style={styles.errorPanel}>{error}</div>}
       </div>
 
       <div style={styles.visualizer}>
@@ -160,7 +179,7 @@ export function Recorder({ isListening }) {
           </button>
         ) : (
           <button onClick={startRecording} style={styles.button} disabled={!isListening}>
-            {isListening ? '🎤 Start Recording' : 'Enable Microphone First'}
+            {micGranted === 'denied' ? 'Microphone Denied' : (isListening ? '🎤 Start Recording' : 'Enable Microphone First')}
           </button>
         )}
         {recording && (
@@ -202,7 +221,9 @@ const styles = {
     marginBottom: '20px',
   },
   title: { margin: 0, fontSize: '20px' },
-  error: { color: '#f87171', fontSize: '14px' },
+  errorPanel: {
+    color: '#f87171', fontSize: '14px', margin: '8px 0',
+  },
   visualizer: {
     height: '100px',
     background: 'rgba(0,0,0,0.3)',
@@ -223,7 +244,6 @@ const styles = {
     background: 'linear-gradient(135deg, #60a5fa, #a78bfa)',
     color: 'white',
   },
-  buttonStop: { background: 'linear-gradient(135deg, #ef4444, #f97316)' },
   buttonSecondary: {
     background: 'rgba(255,255,255,0.1)',
     border: '1px solid rgba(255,255,255,0.2)',

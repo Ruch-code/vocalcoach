@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { PitchDisplay } from './PitchDisplay';
 import { SONGS, getSongById, playNote, getNoteFreq, playSongInstrumental } from '../utils/songLibrary';
 
-export function ExerciseMode({ pitch, isListening }) {
+export function ExerciseMode({ pitch, isListening, micGranted }) {
   const [song, setSong] = useState(() => getSongById('why') || { id: 'why', name: 'Avril Lavigne - Why', key: 'C4', notes: [], lyrics: [] });
   const [currentNoteIndex, setCurrentNoteIndex] = useState(0);
   const [direction, setDirection] = useState(1);
@@ -18,17 +18,22 @@ export function ExerciseMode({ pitch, isListening }) {
   const scaleNotes = getScaleNotes(song.key, 'major');
   const targetNoteInfo = scaleNotes.find(n => n.note === currentTargetNote) || { note: currentTargetNote, octave: 4, displayName: currentTargetNote };
 
-  // Start audio context when component mounts
+  // Start audio context when component mounts - but only after user gesture
   useEffect(() => {
-    audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    // Audio context will be created on first user interaction
   }, []);
 
   const playCurrentTarget = useCallback(() => {
     const note = currentTargetNote;
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
+    if (!audioContextRef.current) {
+      // Create on demand when user interacts
+      try {
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      } catch (e) {
+        // Audio context creation failed
+        return;
+      }
     }
-    audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
     oscillatorRef.current = audioContextRef.current.createOscillator();
     const gainNode = audioContextRef.current.createGain();
     oscillatorRef.current.type = 'sine';
@@ -38,14 +43,6 @@ export function ExerciseMode({ pitch, isListening }) {
     gainNode.gain.value = 0.3;
     oscillatorRef.current.start(ctx => { oscillatorRef.current.stop(ctx.currentTime + 1); });
   }, [currentTargetNote]);
-
-  // Play instrumental when song starts
-  useEffect(() => {
-    if (isActive && song.notes.length > 0 && !isPlayingInstrumental) {
-      setIsPlayingInstrumental(true);
-      playSongInstrumental(song.id, 0.5);
-    }
-  }, [isActive, song.id, isPlayingInstrumental]);
 
   useEffect(() => {
     const note = song.notes[currentNoteIndex];
@@ -92,10 +89,8 @@ export function ExerciseMode({ pitch, isListening }) {
     setIsActive(true);
     setShowResults(false);
     setLyricIndex(0);
+    setCurrentTargetNote(song.notes[0]?.note || 'C4');
     setIsPlayingInstrumental(false);
-    if (song.notes.length > 0) {
-      setCurrentTargetNote(song.notes[0].note);
-    }
   };
 
   const stopExercise = () => {
@@ -107,6 +102,7 @@ export function ExerciseMode({ pitch, isListening }) {
     }
     if (audioContextRef.current) {
       audioContextRef.current.close();
+      audioContextRef.current = null;
     }
   };
 
@@ -202,13 +198,10 @@ export function ExerciseMode({ pitch, isListening }) {
               <button onClick={playCurrentTarget} style={{ ...styles.button, background: 'linear-gradient(135deg, #f6ad56, #ff7849)', marginLeft: '8px' }}>
                 🔊
               </button>
-              <button onClick={() => setIsPlayingInstrumental(!isPlayingInstrumental)} style={{ ...styles.button, background: isPlayingInstrumental ? 'linear-gradient(135deg, #6b7280, #4b5563)' : 'linear-gradient(135deg, #10b981, #34d399)', marginLeft: '8px' }}>
-                {isPlayingInstrumental ? '🛑 Inst' : '🎵 Inst'}
-              </button>
             </>
           ) : (
             <button onClick={startExercise} style={styles.button} disabled={!isListening}>
-              {isListening ? 'Start Song' : 'Enable Microphone First'}
+              {isListening ? 'Start Song' : micGranted === 'denied' ? 'Microphone Denied' : 'Enable Microphone First'}
             </button>
           )}
         </div>
